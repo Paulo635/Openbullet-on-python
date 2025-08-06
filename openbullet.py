@@ -1,16 +1,16 @@
 try:
     from enum import Enum
-    import re,json,base64
+    import re, json, base64
     from jsonpath_ng import parse as JTParse
     from bs4 import BeautifulSoup
     from shutil import copyfile, move, rmtree
-    from random import choice, shuffle
-    from urllib.parse import quote, unquote
-    from datetime import datetime,timezone
-    from random import randint
+    from random import choice, shuffle, randint
+    from urllib.parse import quote as urllib_quote, unquote
+    from datetime import datetime, timezone
     import random
     import time
     import math
+    from math import floor
     from html import escape, unescape
     import hashlib
     from hashlib import pbkdf2_hmac
@@ -18,16 +18,26 @@ try:
     from secrets import token_bytes
     from requests import Request, Session
     from requests.auth import HTTPBasicAuth
-    from requests.utils import quote
-    import random
-    from math import floor
-    from typing import Union
+    from requests.utils import quote as requests_quote
+    from typing import Union, Optional, List, Dict, Any
     import os
     import argparse
+    import logging
 except Exception as F:
 	exit(f"Module Error {F}\n\nTo install the module, enter the following command: pip install {F}")
 rd, gn, lgn, yw, lrd, be, pe = '\033[00;31m', '\033[00;32m', '\033[01;32m', '\033[01;33m', '\033[01;31m', '\033[00;34m', '\033[01;35m'
 cn, k,g = '\033[00;36m', '\033[90m','\033[38;5;130m'
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('openbullet.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 def clear():
     if 'Windows' in __import__("platform").uname():
         os.system("cls")
@@ -55,7 +65,7 @@ class VARLB:
     List = "List"
     Dictionary = "Dictionary"
 class CVV:
-    def __init__(self, Name:str, Value,IsCapture:bool,Hidden=False):
+    def __init__(self, Name: str, Value: Any, IsCapture: bool, Hidden: bool = False) -> None:
 
         if type(Value) == list:
             self.var_type = VARLB.List
@@ -69,14 +79,16 @@ class CVV:
         self.IsCapture = IsCapture
         self.Hidden = Hidden
     
-    def ToString(self):
+    def ToString(self) -> str:
         if self.var_type == VARLB.Single:
-            return self.Value
+            return str(self.Value)
         elif self.var_type == VARLB.List:
-            if type(self.Value == list): return "[" + ",".join(self.Value) + "]"
-            else: return ""
+            if type(self.Value) == list: 
+                return "[" + ",".join(str(item) for item in self.Value) + "]"
+            else: 
+                return ""
         elif self.var_type == VARLB.Dictionary:
-            return "{" + ",".join(["(" + v[0] + ", " + v[1] + ")" for v in self.Value.items()]) + "}"
+            return "{" + ",".join(["(" + str(v[0]) + ", " + str(v[1]) + ")" for v in self.Value.items()]) + "}"
     
     def GetListItem(self,index):
         if self.var_type != VARLB.List: return None
@@ -108,29 +120,35 @@ class CVV:
             return None
         
 class VariableList:
-    def __init__(self):
-        self.all = []
-    def Captures(self):
+    def __init__(self) -> None:
+        self.all: List[CVV] = []
+    
+    def Captures(self) -> List[CVV]:
         return [v for v in self.all if v.IsCapture == True and v.Hidden == False]
     def VariableList(self):
         self.all = []
     def VariableListWithList(self,List):
         self.all = List
-    def GetWithName(self,name):
-        return next((v for v in self.all if v.Name == name),None)
-    def GetWithNameAndType(self,name,var_type):
-        return next((v for v in self.all if v.var_type == var_type and v.Name == name),None)
+    def GetWithName(self, name: str) -> Optional[CVV]:
+        return next((v for v in self.all if v.Name == name), None)
+    
+    def GetWithNameAndType(self, name: str, var_type: str) -> Optional[CVV]:
+        return next((v for v in self.all if v.var_type == var_type and v.Name == name), None)
         
-    def GetSingle(self,name):
-        return self.GetWithNameAndType(name,VARLB.Single).Value
-    def GetList(self,name):
-        v = self.GetWithNameAndType(name,VARLB.List)
+    def GetSingle(self, name: str) -> Any:
+        var = self.GetWithNameAndType(name, VARLB.Single)
+        return var.Value if var else None
+    
+    def GetList(self, name: str) -> Optional[List]:
+        v = self.GetWithNameAndType(name, VARLB.List)
         if v:
             return v.Value
         else:
             return None
-    def GetDictionary(self,name):
-        return self.GetWithNameAndType(name,VARLB.Dictionary)
+    
+    def GetDictionary(self, name: str) -> Optional[Dict]:
+        var = self.GetWithNameAndType(name, VARLB.Dictionary)
+        return var.Value if var else None
     def VariableExists(self,name):
         return any([v for v in self.all if v.Name == name])
     def VariableExistsWithType(self,name, var_type):
@@ -166,136 +184,36 @@ class BotData:
         self.proxy = proxy
 
     def ResponseSourceGet(self):
-        return self.Variables.GetWithName("SOURCE").Value
+        var = self.Variables.GetWithName("SOURCE")
+        return var.Value if var else None
     def ResponseSourceSet(self,variable):
         self.Variables.Set(variable)
 
     def AddressGet(self):
-        return self.Variables.GetWithName("ADDRESS").Value
+        var = self.Variables.GetWithName("ADDRESS")
+        return var.Value if var else None
     def AddressSet(self,variable):
         self.Variables.Set(variable)
 
     def ResponseCodeGet(self):
-        return self.Variables.GetWithName("RESPONSECODE").Value
+        var = self.Variables.GetWithName("RESPONSECODE")
+        return var.Value if var else None
     def ResponseCodeSet(self,variable):
         self.Variables.Set(variable)
 
     def ResponseHeadersGet(self):
-        return self.Variables.GetWithName("HEADERS").Value
+        var = self.Variables.GetWithName("HEADERS")
+        return var.Value if var else None
     def ResponseHeadersSet(self,variable):
         self.Variables.Set(variable)
 
     def CookiesGet(self):
-        return self.Variables.GetWithName("COOKIES")
+        var = self.Variables.GetWithName("COOKIES")
+        return var if var else None
     def CookiesSet(self,variable):
         self.Variables.Set(variable)
 
 
-
-
-class VARLB:
-    Single = "Single"
-    List = "List"
-    Dictionary = "Dictionary"
-class CVV:
-
-    def __init__(self, Name:str, Value,IsCapture:bool,Hidden=False):
-
-        if type(Value) == list:
-            self.var_type = VARLB.List
-        elif type(Value) == str:
-            self.var_type = VARLB.Single
-        elif type(Value) == dict:
-            self.var_type = VARLB.Dictionary
-
-        self.Name = Name
-        self.Value = Value
-        self.IsCapture = IsCapture
-        self.Hidden = Hidden
-    
-    def ToString(self):
-        if self.var_type == VARLB.Single:
-            return self.Value
-        elif self.var_type == VARLB.List:
-            if type(self.Value == list): return "[" + ",".join(self.Value) + "]"
-            else: return ""
-        elif self.var_type == VARLB.Dictionary:
-            return "{" + ",".join(["(" + v[0] + ", " + v[1] + ")" for v in self.Value.items()]) + "}"
-    
-    def GetListItem(self,index):
-        if self.var_type != VARLB.List: return None
-
-        List = list(self.Value)
-
-        if index < 0:
-            index = len(List) + index    
-        
-        if index > len(List) - 1 or index < 0: return None
-        return List[index]
-
-    def GetDictValue(self,key):
-        Dict = self.Value
-        Dict = next((v for v in self.Value.items() if v[0] == key),None)
-        if Dict:
-            return Dict[1]
-        else:
-            print("Key not in dictionary")
-            return None
-
-    def GetDictKey(self,value):
-        Dict = self.Value
-        Dict = next((v for v in self.Value.items() if v[1] == value),None)
-        if Dict:
-            return Dict[0]
-        else:
-            print("Value not in dictionary")
-            return None
-        
-
-class proxyType(str,Enum):
-    HTTP = "http"
-    HTTPS = "https"
-    SOCKS4 = "socks4"
-    SOCKS5 = "socks5"
-class BotData:
-    class BotStatus(str,Enum):
-        NONE = "NONE"
-        ERROR = "ERROR"
-        SUCCESS = "SUCCESS"
-        FAIL = "FAIL"
-        BAN = "BAN"
-        RETRY = "RETRY"
-        CUSTOM = "CUSTOM"
-    def __init__(self,status=BotStatus.NONE, proxy:dict = None):
-        self.Variables = VariableList()
-        self.status = status
-        self.cwd = None
-        self.proxy = proxy
-
-    def ResponseSourceGet(self):
-        return self.Variables.GetWithName("SOURCE").Value
-    def ResponseSourceSet(self,variable):
-        self.Variables.Set(variable)
-
-    def AddressGet(self):
-        return self.Variables.GetWithName("ADDRESS").Value
-    def AddressSet(self,variable):
-        self.Variables.Set(variable)
-
-    def ResponseCodeGet(self):
-        return self.Variables.GetWithName("RESPONSECODE").Value
-    def ResponseCodeSet(self,variable):
-        self.Variables.Set(variable)
-
-    def ResponseHeadersGet(self):
-        return self.Variables.GetWithName("HEADERS").Value
-    def ResponseHeadersSet(self,variable):
-        self.Variables.Set(variable)
-
-    def CookiesGet(self):
-        return self.Variables.GetWithName("COOKIES")
-    def CookiesSet(self,variable):
-        self.Variables.Set(variable)
 
 def ParseArguments(input_string, delimL, delimR):
     output = []
@@ -507,32 +425,44 @@ def Verify(Left,comparer,Right):
     else:
         return False
 
-def ReplaceAndVerify(Left,comparer,Right,BotData):
-    L = ReplaceValuesRecursive(Left,BotData)
-    R = ReplaceValues(Right,BotData)
+def ReplaceAndVerify(Left: str, comparer: str, Right: str, BotData) -> bool:
+    L = ReplaceValuesRecursive(Left, BotData)
+    R = ReplaceValues(Right, BotData)
 
     if comparer == Comparer.EqualTo:
-        return any([l for l in L if l == R])
-    elif comparer == Comparer.EqualTo:
-        return any([l for l in L if l != R])
+        return any(l == R for l in L)
+    elif comparer == Comparer.NotEqualTo:  # Fixed duplicate EqualTo
+        return any(l != R for l in L)
     elif comparer == Comparer.GreaterThan:
-        return any([l for l in L if float(l.replace(",",".")) > float(R.replace(",","."))])
-    elif comparer == Comparer.LessThan.value:
-        return any([l for l in L if float(l.replace(",",".")) < float(R.replace(",","."))])
+        try:
+            return any(float(l.replace(",", ".")) > float(R.replace(",", ".")) for l in L)
+        except (ValueError, AttributeError):
+            return False
+    elif comparer == Comparer.LessThan:  # Fixed .value
+        try:
+            return any(float(l.replace(",", ".")) < float(R.replace(",", ".")) for l in L)
+        except (ValueError, AttributeError):
+            return False
     elif comparer == Comparer.Contains:
-        return any([l for l in L if R in l])
+        return any(R in l for l in L)
     elif comparer == Comparer.DoesNotContain:
-        return any([l for l in L if R not in l])
-    elif comparer == Comparer.Exists.value:
-        return any([l for l in L if l != Left])
+        return any(R not in l for l in L)
+    elif comparer == Comparer.Exists:  # Fixed .value
+        return any(l != Left for l in L)
     elif comparer == Comparer.DoesNotExist:
-        return any([l for l in L if l == Left])
+        return any(l == Left for l in L)
     elif comparer == Comparer.MatchesRegex:
-        return any([l for l in L if re.match(l,R)])
+        try:
+            return any(re.match(R, l) for l in L)  # Fixed parameter order
+        except re.error:
+            return False
     elif comparer == Comparer.DoesNotMatchRegex:
-        return any([l for l in L if not re.match(l,R)])
+        try:
+            return any(not re.match(R, l) for l in L)  # Fixed parameter order
+        except re.error:
+            return False
     else:
-        pass
+        return False
 
 class Key:
     def __init__(self,LeftTerm="",Comparer="",RightTerm=""):
@@ -578,95 +508,6 @@ class KeyChain:
             return True
 
 
-class VariableList:
-    def __init__(self):
-        self.all = []
-    def Captures(self):
-        return [v for v in self.all if v.IsCapture == True and v.Hidden == False]
-
-    def VariableList(self):
-        self.all = []
-
-    def VariableListWithList(self,List):
-        self.all = List
-
-    def GetWithName(self,name):
-        return next((v for v in self.all if v.Name == name),None)
-
-    def GetWithNameAndType(self,name,var_type):
-        return next((v for v in self.all if v.var_type == var_type and v.Name == name),None)
-        
-    def GetSingle(self,name):
-        return self.GetWithNameAndType(name,VARLB.Single).Value
-    
-    def GetList(self,name):
-        v = self.GetWithNameAndType(name,VARLB.List)
-        if v:
-            return v.Value
-        else:
-            return None
-        
-    def GetDictionary(self,name):
-        return self.GetWithNameAndType(name,VARLB.Dictionary)
-
-    def VariableExists(self,name):
-        return any([v for v in self.all if v.Name == name])
-
-    def VariableExistsWithType(self,name, var_type):
-        return any([v for v in self.all if v.Name == name and v.var_type == var_type])
-    
-    def Set(self,variable:CVV):
-        self.Remove(variable.Name)
-
-        self.all.append(variable)
-    def SetNew(self, variable):
-        if self.VariableExists(variable.Name) == False: self.Set(variable)
-    def Remove(self,name):
-        self.all = [v for v in self.all if v.Name != name]
-
-    def ToCaptureString(self):
-        return " | ".join([v.Name + "=" + v.ToString() for v in self.Captures()]) 
-
-class Key:
-    def __init__(self,LeftTerm="",Comparer="",RightTerm=""):
-        self.LeftTerm = LeftTerm
-        self.Comparer = Comparer
-        self.RightTerm = RightTerm
-
-    def CheckKey(self,BotData):
-        try:
-            return ReplaceAndVerify(self.LeftTerm,self.Comparer,self.RightTerm,BotData)
-        except Exception:
-            return False
-        
-class KeychainType(Enum):
-    Success = "Success"
-    Failure = "Failure"
-    Ban = "Ban"
-    Retry = "Retry"
-    Custom = "Custom"
-
-class KeychainMode(Enum):
-    OR = "OR"
-    AND = "AND"
-class KeyChain:
-    def __init__(self,Type=None,Mode=None,banOn4XX=None,banOnToCheck=None,Keys=None):
-        self.Type = KeychainType.Success
-        self.Mode = KeychainMode.AND
-        self.Keys = []
-
-    def CheckKeys(self,BotData):
-        if self.Mode == KeychainMode.OR:
-            for key in self.Keys:
-                if key.CheckKey(BotData):
-                    return True
-            return False
-        elif self.Mode == KeychainMode.AND:
-            for key in self.Keys:
-                if not key.CheckKey(BotData):
-                    return False
-            return True
-        
 
 
 
@@ -674,24 +515,6 @@ class KeyChain:
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import re
 
 class LineParser:
     def __init__(self) -> None:
@@ -2994,28 +2817,28 @@ class OpenBullet:
 
 lock = f"""{k}                                                                                                                       
     ____   __ __  _      _        ___  ______ 
-|    \ |  T  T| T    | T      /  _]|      T
+|    \\ |  T  T| T    | T      /  _]|      T
 |  o  )|  |  || |    | |     /  [_ |      |
 |     T|  |  || l___ | l___ Y    _]l_j  l_j
 |  O  ||  :  ||     T|     T|   [_   |  |  
 |     |l     ||     ||     ||     T  |  |  
-l_____j \__,_jl_____jl_____jl_____j  l__j                                        
+l_____j \\__,_jl_____jl_____jl_____j  l__j                                        
 """
 bullet = f"""{k}
  ____   __ __  _      _        ___  ______ 
-|    \ |  T  T| T    | T      /  _]|      T
+|    \\ |  T  T| T    | T      /  _]|      T
 |  o  )|  |  || |    | |     /  [_ |      |
 |     T|  |  || l___ | l___ Y    _]l_j  l_j
 |  O  ||  :  ||     T|     T|   [_   |  |  
 |     |l     ||     ||     ||     T  |  |  
-l_____j \__,_jl_____jl_____jl_____j  l__j  
+l_____j \\__,_jl_____jl_____jl_____j  l__j  
                                            
 """
 RUN = f"{pe} Config executed!"
 version = f"""
 {lgn}    Openbullet Py  
-\033[1;37m    Version : 2.0
-{lrd}    Telegram :  ❟❛❟@𝙈𝙖𝙭𝙭𝙄𝙩𝙖𝙘𝙝𝙞❟❛❟  \n\n            
+\\033[1;37m    Version : 2.0
+{lrd}    Telegram :  ❟❛❟@𝙈𝙖𝙭𝙭𝙄𝙩𝙖𝙘𝙝𝙞❟❛❟  \\n\\n            
 """
 if __name__ == "__main__":
     try:
@@ -3063,14 +2886,16 @@ if __name__ == "__main__":
     proxy = escolher_arquivo(f'{lrd}[{lgn}~{lrd}]{gn} ESCOLHA O PROXY', '.txt')
     try:
         proxy = open(proxy, 'r')
-    except:
+    except (FileNotFoundError, PermissionError, IOError) as e:
+        logger.error(f"Error opening proxy file {proxy}: {e}")
         print(f'{TF.ERROR}! Check the file {k}{proxy}')
         exit()
 
     user = escolher_arquivo(f'{lrd}[{lgn}~{lrd}]{gn} ESCOLHA O COMBO', '.txt')
     try:
         user = open(user, 'r')
-    except:
+    except (FileNotFoundError, PermissionError, IOError) as e:
+        logger.error(f"Error opening user file {user}: {e}")
         print(f'{TF.ERROR}! Check the file {k}{user}')
         exit()
 
@@ -3080,24 +2905,34 @@ if __name__ == "__main__":
     ToSleep(RUN,0.010)
     for PROXY in proxy:
         for i in user:
-            UserPass = i.split(':')
-            UserPass = UserPass[0].strip(),UserPass[1].strip()
-            open_bullet = OpenBullet(config=config, USER=UserPass[0],PASS=UserPass[1],proxy=[PROXY,str(Type)])
-            print('\033[1;37m')
-            run = open_bullet.run()
-            if 'SUCCESS' == run:
-                print (f"{TF.SUCCESS}=> {UserPass[0]}:{UserPass[1]}\033[1;37m")
-                with open('SUCCESS.txt','a') as suc:
-                    suc.write(str(UserPass))
-            elif 'BAN' == run:
-                print (f"{TF.BAN}=> {UserPass[0]}:{UserPass[1]}\033[1;37m")
-            elif 'FAIL' == run:
-                print (f"{TF.FAIL}=> {UserPass[0]}:{UserPass[1]}\033[1;37m")
-            elif 'NONE' == run:
-                print (f"{TF.NONE}=> {UserPass[0]}:{UserPass[1]}\033[1;37m")
-            elif 'ERROR' == run:
-                print (f"{TF.ERROR}=> {UserPass[0]}:{UserPass[1]}\033[1;37m")
-            elif 'RETRY' == run:
-                print (f"{TF.RETRY}=> {UserPass[0]}:{UserPass[1]}\033[1;37m")
-            elif 'CUSTOM' == run:
-                print (f"{TF.CUSTOM}=> {UserPass[0]}:{UserPass[1]}\033[1;37m")
+            try:
+                UserPass = i.strip().split(':')
+                if len(UserPass) < 2:
+                    logger.warning(f"Invalid user:pass format: {i.strip()}")
+                    continue
+                UserPass = UserPass[0].strip(), UserPass[1].strip()
+                open_bullet = OpenBullet(config=config, USER=UserPass[0], PASS=UserPass[1], proxy=[PROXY.strip(), str(Type)])
+                print('\033[1;37m')
+                run = open_bullet.run()
+                
+                result_msg = f"{UserPass[0]}:{UserPass[1]}\033[1;37m"
+                if 'SUCCESS' == run:
+                    print(f"{TF.SUCCESS}=> {result_msg}")
+                    logger.info(f"SUCCESS: {UserPass[0]}:{UserPass[1]}")
+                    with open('SUCCESS.txt', 'a') as suc:
+                        suc.write(f"{UserPass[0]}:{UserPass[1]}\n")
+                elif 'BAN' == run:
+                    print(f"{TF.BAN}=> {result_msg}")
+                elif 'FAIL' == run:
+                    print(f"{TF.FAIL}=> {result_msg}")
+                elif 'NONE' == run:
+                    print(f"{TF.NONE}=> {result_msg}")
+                elif 'ERROR' == run:
+                    print(f"{TF.ERROR}=> {result_msg}")
+                elif 'RETRY' == run:
+                    print(f"{TF.RETRY}=> {result_msg}")
+                elif 'CUSTOM' == run:
+                    print(f"{TF.CUSTOM}=> {result_msg}")
+            except Exception as e:
+                logger.error(f"Error processing user:pass {i.strip()}: {e}")
+                continue
